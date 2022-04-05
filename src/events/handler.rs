@@ -7,15 +7,14 @@ use gtk4::prelude::*;
 use gtk4::CssProvider;
 use relm4_macros::view;
 
-use crate::adw;
+use crate::{adw};
 use crate::data::app::App;
 use crate::data::list::fetch;
 use crate::data::task::{add_entry, add_list_entry, get_tasks, set_completed, task_selected};
 use crate::events::{DataEvent, EventHandler, UiEvent};
 use crate::models::list::List;
-use crate::services::microsoft::service::MicrosoftService;
 use crate::services::microsoft::task::Task;
-use crate::services::ToDoService;
+use crate::services::microsoft::token::TokenService;
 use crate::ui::base::BaseWidgets;
 
 pub struct Handler {}
@@ -42,7 +41,9 @@ impl Handler {
                 while let Some(event) = ui_recv.recv().await {
                     match event {
                         UiEvent::ListSelected(index) => get_tasks(index, &data_tx).await,
-                        UiEvent::Fetch => fetch(&data_tx).await,
+                        UiEvent::Fetch => {
+                            fetch(&data_tx).await;
+                        },
                         UiEvent::TaskCompleted(list_id, task_id, completed) => {
                             set_completed(list_id, task_id, completed).await
                         }
@@ -87,7 +88,7 @@ impl Handler {
     }
 
     fn handle_ui(widgets: &BaseWidgets, event_handler: EventHandler) {
-        if MicrosoftService::is_token_present() {
+        if TokenService::is_token_present() {
             event_handler
                 .ui_tx
                 .borrow_mut()

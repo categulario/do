@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Collection<T> {
+    #[serde(rename = "@odata.nextLink")]
+    pub delta_link: String,
     pub value: Vec<T>,
 }
 

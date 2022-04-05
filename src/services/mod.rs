@@ -1,6 +1,5 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use libdmd::config::Config;
 
 use crate::models::list::List;
 use crate::services::microsoft::task::Task;
@@ -9,19 +8,12 @@ pub mod microsoft;
 
 #[async_trait]
 pub trait ToDoService<T> {
-    // Settings
-    fn create_config(config: &mut Config) -> Result<Config>;
-    // Token management
-    fn is_token_present() -> bool;
-    fn current_token_data() -> Option<T>;
-    fn update_token_data(config: &T) -> Result<()>;
     // Authentication
     async fn authenticate() -> Result<()>;
-    async fn logout() -> Result<()>;
-    async fn token(code: String) -> Result<T>;
-    async fn refresh_token(&mut self) -> Result<T>;
+    async fn sign_out() -> Result<()>;
     // Lists
     async fn get_lists() -> Result<Vec<List>>;
+    async fn get_lists_delta() -> Result<Vec<List>>;
     async fn delete_list(list_id: &str) -> Result<()>;
     async fn post_list(name: String) -> Result<()>;
     async fn update_list(list_id: &str, name: String) -> Result<()>;
