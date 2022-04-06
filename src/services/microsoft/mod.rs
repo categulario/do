@@ -1,7 +1,4 @@
-pub mod service;
-pub mod task;
-pub mod types;
-pub mod notifications;
-pub mod token;
-pub mod settings;
-pub mod delta;
+pub mod graph;
+pub mod data;
+pub mod ui;
+pub mod models;

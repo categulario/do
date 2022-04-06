@@ -3,37 +3,17 @@ use libdmd::config::Config;
 use libdmd::format::FileType;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
+use crate::models::token::{Token, TokenService};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct TokenService {
+pub struct GraphToken {
     pub expires_in: usize,
     pub access_token: String,
     pub refresh_token: String,
 }
 
-impl TokenService {
-    pub(crate) fn is_token_present() -> bool {
-        let config = TokenService::current_token_data();
-        match config {
-            Some(config) => !config.refresh_token.is_empty(),
-            None => false,
-        }
-    }
-    pub(crate) fn current_token_data() -> Option<TokenService> {
-        Config::get::<TokenService>("do/services/microsoft/token.toml", FileType::TOML)
-    }
-    pub(crate) fn update_token_data(config: &TokenService) -> anyhow::Result<()> {
-        Config::set(
-            "do/services/microsoft/token.toml",
-            config.clone(),
-            FileType::TOML,
-        )
-    }
-    pub(crate) async fn clear_token() -> anyhow::Result<()> {
-        let token_data = TokenService::default();
-        TokenService::update_token_data(&token_data)
-    }
-    pub(crate) async fn get_token(code: String) -> anyhow::Result<TokenService> {
+impl GraphToken {
+    pub(crate) async fn get_token(code: String) -> anyhow::Result<GraphToken> {
         let client = reqwest::Client::new();
         let params = cascade! {
             HashMap::new();
@@ -51,14 +31,14 @@ impl TokenService {
         match response.error_for_status() {
             Ok(response) => {
                 let response = response.text().await?;
-                let token_data: TokenService = serde_json::from_str(response.as_str())?;
-                TokenService::update_token_data(&token_data)?;
+                let token_data: GraphToken = serde_json::from_str(response.as_str())?;
+                GraphToken::update_token(&token_data)?;
                 Ok(token_data)
             }
             Err(error) => Err(error.into()),
         }
     }
-    pub(crate) async fn refresh_token(mut self) -> anyhow::Result<TokenService> {
+    pub(crate) async fn refresh_token(mut self) -> anyhow::Result<GraphToken> {
         let client = reqwest::Client::new();
         let params = cascade! {
             HashMap::new();
@@ -76,12 +56,58 @@ impl TokenService {
         match response.error_for_status() {
             Ok(response) => {
                 let response = response.text().await?;
-                let token_data: TokenService = serde_json::from_str(response.as_str())?;
-                TokenService::update_token_data(&token_data)?;
+                let token_data: GraphToken = serde_json::from_str(response.as_str())?;
+                GraphToken::update_token(&token_data)?;
                 self = token_data;
                 Ok(self)
             }
             Err(error) => Err(error.into()),
         }
+    }
+}
+
+impl From<Token> for GraphToken {
+    fn from(token: Token) -> Self {
+        Self {
+            expires_in: 0,
+            access_token: token.access_token,
+            refresh_token: "".to_string()
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl TokenService<GraphToken> for GraphToken {
+    fn token_exists() -> bool {
+        let config = GraphToken::read_token();
+        match config {
+            Some(config) => !config.refresh_token.is_empty(),
+            None => false,
+        }
+    }
+
+    async fn create_token(code: Option<String>) -> anyhow::Result<GraphToken> {
+        match code {
+            None => todo!(),
+            Some(code) => GraphToken::get_token(code).await
+        }
+
+    }
+
+    fn read_token() -> Option<GraphToken> {
+        Config::get::<GraphToken>("do/services/microsoft/token.toml", FileType::TOML)
+    }
+
+    fn update_token(token: &GraphToken) -> anyhow::Result<()> {
+        Config::set(
+            "do/services/microsoft/token.toml",
+            token.clone(),
+            FileType::TOML,
+        )
+    }
+
+    fn delete_token() -> anyhow::Result<()> {
+        let token_data = GraphToken::default();
+        GraphToken::update_token(&token_data)
     }
 }

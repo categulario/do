@@ -2,8 +2,9 @@ use gtk4 as gtk;
 use libadwaita as adw;
 use libadwaita::prelude::*;
 use relm4_macros::view;
+use crate::models::token::TokenService;
+use crate::services::microsoft::models::token::GraphToken;
 
-use crate::services::microsoft::token::TokenService;
 use crate::ui::content::MainWidgets;
 use crate::ui::details::DetailsWidgets;
 use crate::ui::sidebar::SidebarWidgets;
@@ -39,7 +40,7 @@ impl BaseWidgets {
         let sidebar = SidebarWidgets::new(&header_box);
         let details = DetailsWidgets::new();
         let login_button = gtk::Button::builder().label("Login").build();
-        let welcome = if TokenService::is_token_present() {
+        let welcome = if GraphToken::token_exists() {
             Self::create_welcome(None)
         } else {
             Self::create_welcome(Some(&login_button))

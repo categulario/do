@@ -1,18 +1,22 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::str::FromStr;
+use chrono::{DateTime, Utc};
 
 use gtk::prelude::*;
 use gtk4 as gtk;
 use relm4_macros::view;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::Sender;
 
 use crate::events::UiEvent;
-use crate::services::microsoft::types::{DateTimeTimeZone, ItemBody};
+use crate::models::task::{Task, TaskImportance, TaskStatus};
+use crate::services::microsoft::models::types::{DateTimeTimeZone, ItemBody};
 use crate::ui::base::BaseWidgets;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Task {
+pub struct ToDoTask {
     pub id: String,
     pub body: ItemBody,
     pub completed_date_time: Option<DateTimeTimeZone>,
@@ -21,17 +25,34 @@ pub struct Task {
     pub is_reminder_on: bool,
     // pub recurrence: PatternedRecurrence,
     pub reminder_date_time: Option<DateTimeTimeZone>,
-    pub status: TaskStatus,
+    pub status: ToDoTaskStatus,
     pub title: String,
     pub created_date_time: String,
     pub last_modified_date_time: String,
 }
 
-impl Task {
+impl From<ToDoTask> for Task {
+    fn from(task: ToDoTask) -> Self {
+        Self {
+            title: task.title,
+            body: task.body.content,
+            completed_on: Some(DateTime::<Utc>::from_str(task.completed_date_time.unwrap().date_time.as_str()).unwrap()),
+            due_date: Some(DateTime::<Utc>::from_str(task.due_date_time.unwrap().date_time.as_str()).unwrap()),
+            importance: task.importance,
+            is_reminder_on: task.is_reminder_on,
+            reminder_date: Some(DateTime::<Utc>::from_str(task.reminder_date_time.unwrap().date_time.as_str()).unwrap()),
+            status: task.status.into(),
+            created_date_time: DateTime::<Utc>::from_str(task.created_date_time.unwrap().date_time.as_str()).unwrap(),
+            last_modified_date_time: DateTime::<Utc>::from_str(task.last_modified_date_time.unwrap().date_time.as_str()).unwrap(),
+        }
+    }
+}
+
+impl ToDoTask {
     pub fn fill_tasks(
         ui: &BaseWidgets,
         task_list_id: String,
-        task_list: &[Task],
+        task_list: &Vec<ToDoTask>,
         ui_tx: Rc<RefCell<tokio::sync::mpsc::Sender<UiEvent>>>,
     ) {
         ui.content.remove(&ui.content.last_child().unwrap());
@@ -121,7 +142,7 @@ impl Task {
     pub fn fill_details(
         ui: &BaseWidgets,
         task_list_id: String,
-        task: Task,
+        task: ToDoTask,
         ui_tx: Rc<RefCell<tokio::sync::mpsc::Sender<UiEvent>>>,
     ) {
         let reveals = ui.details.revealer.reveals_child();
@@ -197,11 +218,11 @@ impl Task {
         }
     }
     pub fn is_completed(&self) -> bool {
-        self.status == TaskStatus::Completed
+        self.status == ToDoTaskStatus::Completed
     }
 }
 
-impl Default for Task {
+impl Default for ToDoTask {
     fn default() -> Self {
         Self {
             id: "".to_string(),
@@ -212,7 +233,7 @@ impl Default for Task {
             is_reminder_on: false,
             // recurrence: Default::default(),
             reminder_date_time: None,
-            status: TaskStatus::default(),
+            status: ToDoTaskStatus::default(),
             title: "".to_string(),
             created_date_time: String::new(),
             last_modified_date_time: String::new(),
@@ -220,23 +241,9 @@ impl Default for Task {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub enum TaskImportance {
-    Low,
-    Normal,
-    High,
-}
-
-impl Default for TaskImportance {
-    fn default() -> Self {
-        TaskImportance::Normal
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub enum TaskStatus {
+pub enum ToDoTaskStatus {
     NotStarted,
     Started,
     Completed,
@@ -244,8 +251,17 @@ pub enum TaskStatus {
     Deferred,
 }
 
-impl Default for TaskStatus {
+impl Default for ToDoTaskStatus {
     fn default() -> Self {
-        TaskStatus::NotStarted
+        ToDoTaskStatus::NotStarted
+    }
+}
+
+impl From<ToDoTaskStatus> for TaskStatus {
+    fn from(status: ToDoTaskStatus) -> Self {
+        match status {
+            ToDoTaskStatus::Completed => TaskStatus::Completed,
+            _ => TaskStatus::NotStarted
+        }
     }
 }

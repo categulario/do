@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::models::list::List;
-use crate::services::microsoft::task::Task;
+use crate::models::task::Task;
 
 pub mod handler;
 
@@ -26,7 +26,7 @@ pub enum UiEvent {
 pub enum DataEvent {
     Login,
     UpdateTasks(String, Vec<Task>),
-    UpdateLists(Vec<List>),
+    UpdateLists(Vec<Vec<List>>),
     UpdateDetails(String, Box<Task>),
 }
 

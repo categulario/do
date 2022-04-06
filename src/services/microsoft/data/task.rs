@@ -3,7 +3,7 @@ use std::sync::MutexGuard;
 use tokio::sync::mpsc::Sender;
 
 use crate::events::DataEvent;
-use crate::services::microsoft::service::GraphService;
+use crate::services::microsoft::graph::GraphService;
 use crate::services::ToDoService;
 
 pub async fn get_tasks(index: usize, data_tx: &MutexGuard<'_, Sender<DataEvent>>) {
@@ -12,7 +12,7 @@ pub async fn get_tasks(index: usize, data_tx: &MutexGuard<'_, Sender<DataEvent>>
             let task_list_id = lists[index].clone().task_list_id;
             match GraphService::get_tasks(task_list_id.as_str()).await {
                 Ok(tasks) => data_tx
-                    .send(DataEvent::UpdateTasks(task_list_id.clone(), tasks))
+                    .send(DataEvent::UpdateTasks(task_list_id.clone(), tasks.iter().map(|t| t.into()).collect()))
                     .await
                     .expect("Failed to send UpdateTasks event."),
                 Err(err) => println!("{err}"),

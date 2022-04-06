@@ -3,11 +3,14 @@ use reqwest::StatusCode;
 use serde::{Deserialize};
 
 use crate::models::list::List;
-use crate::services::microsoft::delta::Delta;
-use crate::services::microsoft::task::Task;
-use crate::services::microsoft::token::TokenService;
-use crate::services::microsoft::types::Collection;
+use crate::models::task::Task;
+use crate::models::token::TokenService;
+use crate::services::microsoft::models::delta::Delta;
+use crate::services::microsoft::models::task::ToDoTask;
+use crate::services::microsoft::models::token::GraphToken;
+use crate::services::microsoft::models::types::Collection;
 use crate::services::ToDoService;
+use crate::traits::app::DoService;
 
 #[derive(Deserialize)]
 pub struct Query {
@@ -15,8 +18,69 @@ pub struct Query {
     pub state: String,
 }
 
-pub struct GraphService {
+pub struct GraphService {}
 
+#[async_trait::async_trait]
+impl DoService for GraphService {
+    async fn authenticate(&self) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    async fn sign_out(&self) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    async fn get_lists(&self) -> anyhow::Result<Vec<List>> {
+        let config = GraphToken::read_token()
+            .with_context(|| "Failed to get current configuration.")?;
+        let config = config.refresh_token().await?;
+        let client = reqwest::Client::new();
+        let response = client
+            .get("https://graph.microsoft.com/v1.0/me/todo/lists")
+            .bearer_auth(&config.access_token)
+            .send()
+            .await?;
+        match response.error_for_status() {
+            Ok(response) => {
+                let lists = response.text().await?;
+                let lists: Collection<List> = serde_json::from_str(lists.as_str())?;
+                Ok(lists.value)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn delete_list(&self, list_id: &str) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    async fn post_list(&self, name: String) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    async fn update_list(&self, list_id: &str, name: String) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    async fn get_tasks(self: Box<Self>, list_id: &str) -> anyhow::Result<Vec<Task>> {
+        todo!()
+    }
+
+    async fn get_task(&self, list_id: &str, task_id: &str) -> anyhow::Result<Task> {
+        todo!()
+    }
+
+    async fn delete_task(&self, list_id: &str, task_id: &str) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    async fn post_task(&self, list_id: &str, entry: String) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    async fn update_task(&self, list_id: &str, task_id: &str, task: Task) -> anyhow::Result<()> {
+        todo!()
+    }
 }
 
 #[async_trait::async_trait]
@@ -33,10 +97,10 @@ impl ToDoService<GraphService> for GraphService {
         Ok(())
     }
     async fn sign_out() -> anyhow::Result<()> {
-        TokenService::clear_token().await
+        GraphToken::delete_token()
     }
     async fn get_lists() -> anyhow::Result<Vec<List>> {
-        let config = TokenService::current_token_data()
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
@@ -55,7 +119,8 @@ impl ToDoService<GraphService> for GraphService {
         }
     }
     async fn get_lists_delta() -> anyhow::Result<Vec<List>> {
-        let config = TokenService::current_token_data()
+        todo!();
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
@@ -77,14 +142,14 @@ impl ToDoService<GraphService> for GraphService {
             Ok(response) => {
                 let lists = response.text().await?; // TODO: Figure out why it can't parse delta link.
                 let lists: Collection<List> = serde_json::from_str(lists.as_str())?;
-                Delta::save(lists.delta_link)?;
+                // Delta::save(lists.delta_link)?;
                 Ok(lists.value)
             }
             Err(err) => Err(err.into()),
         }
     }
     async fn delete_list(list_id: &str) -> anyhow::Result<()> {
-        let config = TokenService::current_token_data()
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
@@ -105,7 +170,7 @@ impl ToDoService<GraphService> for GraphService {
         Ok(())
     }
     async fn post_list(name: String) -> anyhow::Result<()> {
-        let config = TokenService::current_token_data()
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
@@ -130,7 +195,7 @@ impl ToDoService<GraphService> for GraphService {
         Ok(())
     }
     async fn update_list(list_id: &str, name: String) -> anyhow::Result<()> {
-        let config = TokenService::current_token_data()
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
@@ -157,15 +222,16 @@ impl ToDoService<GraphService> for GraphService {
         }
         Ok(())
     }
-    async fn get_tasks(task_list_id: &str) -> anyhow::Result<Vec<Task>> {
-        let config = TokenService::current_token_data()
+
+    async fn get_tasks(list_id: &str) -> anyhow::Result<Vec<ToDoTask>> {
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
         let response = client
             .get(format!(
                 "https://graph.microsoft.com/v1.0/me/todo/lists/{}/tasks",
-                task_list_id
+                list_id
             ))
             .bearer_auth(&config.access_token)
             .send()
@@ -173,14 +239,15 @@ impl ToDoService<GraphService> for GraphService {
         match response.error_for_status() {
             Ok(response) => {
                 let response = response.text().await?;
-                let collection: Collection<Task> = serde_json::from_str(response.as_str())?;
+                let collection: Collection<ToDoTask> = serde_json::from_str(response.as_str())?;
                 Ok(collection.value)
             }
             Err(error) => Err(error.into()),
         }
     }
-    async fn get_task(task_list_id: &str, task_id: &str) -> anyhow::Result<Task> {
-        let config = TokenService::current_token_data()
+
+    async fn get_task(task_list_id: &str, task_id: &str) -> anyhow::Result<ToDoTask> {
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
@@ -195,14 +262,14 @@ impl ToDoService<GraphService> for GraphService {
         match response.error_for_status() {
             Ok(response) => {
                 let response = response.text().await?;
-                let task: Task = serde_json::from_str(response.as_str())?;
+                let task: ToDoTask = serde_json::from_str(response.as_str())?;
                 Ok(task)
             }
             Err(error) => Err(error.into()),
         }
     }
     async fn delete_task(list_id: &str, task_id: &str) -> anyhow::Result<()> {
-        let config = TokenService::current_token_data()
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
@@ -223,11 +290,11 @@ impl ToDoService<GraphService> for GraphService {
         Ok(())
     }
     async fn post_task(task_list_id: &str, entry: String) -> anyhow::Result<()> {
-        let config = TokenService::current_token_data()
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
-        let task = Task {
+        let task = ToDoTask {
             title: entry,
             ..std::default::Default::default()
         };
@@ -246,8 +313,8 @@ impl ToDoService<GraphService> for GraphService {
             Err(err) => Err(err.into()),
         }
     }
-    async fn update_task(list_id: &str, task_id: &str, task: Task) -> anyhow::Result<()> {
-        let config = TokenService::current_token_data()
+    async fn update_task(list_id: &str, task_id: &str, task: ToDoTask) -> anyhow::Result<()> {
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let client = reqwest::Client::new();
@@ -274,8 +341,8 @@ impl ToDoService<GraphService> for GraphService {
         task_list_id: &str,
         task_id: &str,
         completed: bool,
-    ) -> anyhow::Result<Vec<Task>> {
-        let config = TokenService::current_token_data()
+    ) -> anyhow::Result<Vec<ToDoTask>> {
+        let config = GraphToken::read_token()
             .with_context(|| "Failed to get current configuration.")?;
         let config = config.refresh_token().await?;
         let status = format!(
@@ -301,7 +368,7 @@ impl ToDoService<GraphService> for GraphService {
         match response.error_for_status() {
             Ok(response) => {
                 let response = response.text().await?;
-                let collection: Collection<Task> = serde_json::from_str(response.as_str())?;
+                let collection: Collection<ToDoTask> = serde_json::from_str(response.as_str())?;
                 Ok(collection.value)
             }
             Err(error) => Err(error.into()),

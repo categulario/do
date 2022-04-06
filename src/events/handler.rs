@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync::Arc;
 
 use cascade::cascade;
 use gtk4::gdk::Display;
@@ -9,12 +10,15 @@ use relm4_macros::view;
 
 use crate::{adw};
 use crate::data::app::App;
-use crate::data::list::fetch;
-use crate::data::task::{add_entry, add_list_entry, get_tasks, set_completed, task_selected};
+use crate::services::microsoft::data::list::fetch;
+use crate::services::microsoft::data::task::{add_entry, add_list_entry, get_tasks, set_completed, task_selected};
 use crate::events::{DataEvent, EventHandler, UiEvent};
 use crate::models::list::List;
-use crate::services::microsoft::task::Task;
-use crate::services::microsoft::token::TokenService;
+use crate::models::service::MainService;
+use crate::models::task::Task;
+use crate::models::token::TokenService;
+use crate::services::microsoft::models::task::ToDoTask;
+use crate::services::microsoft::models::token::GraphToken;
 use crate::ui::base::BaseWidgets;
 
 pub struct Handler {}
@@ -31,7 +35,7 @@ impl Handler {
             .unwrap();
     }
 
-    pub fn handle_events(event_handler: EventHandler) {
+    pub fn handle_events(event_handler: EventHandler, service: Arc<MainService>) {
         std::thread::spawn(move || {
             use tokio::runtime::Runtime;
             let rt = Runtime::new().expect("create tokio runtime");
@@ -42,19 +46,19 @@ impl Handler {
                     match event {
                         UiEvent::ListSelected(index) => get_tasks(index, &data_tx).await,
                         UiEvent::Fetch => {
-                            fetch(&data_tx).await;
+                            fetch(&data_tx, service.clone()).await;
                         },
                         UiEvent::TaskCompleted(list_id, task_id, completed) => {
                             set_completed(list_id, task_id, completed).await
                         }
-                        UiEvent::Login => App::login().await,
+                        UiEvent::Login => App::login(service.clone()).await,
                         UiEvent::TaskSelected(task_list_id, task_id) => {
                             task_selected(task_list_id, task_id, &data_tx).await
                         }
                         UiEvent::AddTaskEntry(entry, task_list_id) => {
                             add_entry(entry, task_list_id, &data_tx).await
                         }
-                        UiEvent::Uri(code) => App::uri(code, &data_tx).await,
+                        UiEvent::Uri(code) => App::uri(code, &data_tx, service.clone()).await,
                         UiEvent::AddListEntry(text) => add_list_entry(text).await,
                     }
                 }
@@ -88,7 +92,7 @@ impl Handler {
     }
 
     fn handle_ui(widgets: &BaseWidgets, event_handler: EventHandler) {
-        if TokenService::is_token_present() {
+        if GraphToken::token_exists() {
             event_handler
                 .ui_tx
                 .borrow_mut()
@@ -132,10 +136,10 @@ impl Handler {
                             List::fill_lists(&closure_widgets, &lists);
                         }
                         DataEvent::UpdateTasks(task_list_id, tasks) => {
-                            Task::fill_tasks(&closure_widgets, task_list_id, &tasks, ui_tx.clone());
+                            // Task::fill_tasks(&closure_widgets, task_list_id, &tasks.iter().map(|t| t.into()).collect(), ui_tx.clone());
                         }
                         DataEvent::UpdateDetails(task_list_id, task) => {
-                            Task::fill_details(&closure_widgets, task_list_id, *task, ui_tx.clone())
+                            // Task::fill_details(&closure_widgets, task_list_id, *task.into(), ui_tx.clone())
                         }
                         DataEvent::Login => {
                             closure_widgets.update_welcome();

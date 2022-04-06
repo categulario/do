@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Collection<T> {
-    #[serde(rename = "@odata.nextLink")]
-    pub delta_link: String,
+    // #[serde(rename = "@odata.nextLink")]
+    // pub delta_link: String,
     pub value: Vec<T>,
 }
 
@@ -18,7 +18,7 @@ pub struct DateTimeTimeZone {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemBody {
-    content: String,
+    pub content: String,
     content_type: BodyType,
 }
 
